@@ -47,7 +47,7 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
                 @Override
                 public void run() {
                     try {
-                        new FileClient(mContext, true).start();
+                        new FileClient(mContext, false).start();
                     } catch (Exception e) {
                         Logger.e("!! Error!!!!!");
                         mIsRun = false;

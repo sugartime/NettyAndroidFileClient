@@ -18,6 +18,8 @@ import android.widget.Toast;
 
 import com.orhanobut.logger.Logger;
 
+import java.util.concurrent.Callable;
+
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -88,7 +90,7 @@ public class HomeActivity extends AppCompatActivity  {
         return super.onOptionsItemSelected(item);
     }
 
-
+    //파일업로드 버튼 클릭
     public void addFileUploadBtnListener(){
         mBtnStartUpload = (Button) findViewById(R.id.btnStartUpload);
 
@@ -100,32 +102,52 @@ public class HomeActivity extends AppCompatActivity  {
 
                 Logger.d("startUpload!!");
 
+
+                // 비동기로 실행될 코드
+//                Callable<FileClient> callable =   new Callable<FileClient>(){
+//                    @Override
+//                    public FileClient call() throws Exception {
+//                        return new FileClient(getContext(), true).start();
+//                    }
+//                };
+
+//
+//                try {
+//                    callable.call();
+//                }catch (Exception e){
+//                    e.printStackTrace();
+//                }
+
+
                 new ProgressBarDlg(getContext()).execute(100);
-
-                /*
-                try {
-                    new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                new FileClient(HomeActivity.this, true).start();
-                            }catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                        }
-                    }).start();
-
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                */
-
 
 
             }
         });
 
     }
+
+
+
+    // 비동기로 실행된 결과를 받아 처리하는 코드
+//
+//    private AsyncCallback<ToonDataList> callback = new AsyncCallback<ToonDataList>() {
+//        @Override
+//        public void onResult(ToonDataList result) {
+//            appendResult(result);
+//        }
+//
+//        @Override
+//        public void exceptionOccured(Exception e) {
+//            AlertUtil.alert(context, context.getString(R.string.dataloading_error));
+//        }
+//
+//        @Override
+//        public void cancelled() {
+//        }
+//    };
+
+
 
     public void addProgressBtnListener() {
 

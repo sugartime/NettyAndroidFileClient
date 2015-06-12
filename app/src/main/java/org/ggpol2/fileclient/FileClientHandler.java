@@ -10,11 +10,17 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelProgressiveFuture;
 import io.netty.channel.ChannelProgressiveFutureListener;
+import io.netty.channel.DefaultFileRegion;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.stream.ChunkedFile;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -30,8 +36,13 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
     private ProgressDialog mDlg;
     private Context mContext;
 
+
+
     //1MB POOLED 버퍼
     ByteBuf mPoolBuf;
+
+    ByteBuf mBuffer;
+    long mOffest=0L;
 
     //프로그래스바에 던져줄 값
     private volatile int mPercent;
@@ -59,6 +70,8 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
         Logger.d("handlerAdded");
 
         mPoolBuf=PooledByteBufAllocator.DEFAULT.directBuffer(1048576);
+
+        mBuffer = mPoolBuf.alloc().buffer(4096);
 
 
     }
@@ -97,7 +110,7 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
             e.printStackTrace();
         }
         //ByteBuf buffer = m_pool_buf.alloc.buffer(file.getName().length() + 12);
-        ByteBuf buffer = mPoolBuf.alloc().buffer(8192);
+        ByteBuf buffer = mPoolBuf.alloc().buffer(4096);
         buffer.writeInt(f_name.length());
         buffer.writeBytes(f_name.getBytes());
         buffer.writeLong(file.length());
@@ -148,54 +161,111 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
         if (ctx.pipeline().get(SslHandler.class) == null) {
 
             Logger.d("transfer");
-            //sendFileFuture =ctx.write(new DefaultFileRegion(raf.getChannel(), 0, fileLength), ctx.newProgressivePromise()); //일케 하면 안됨
-            //lastContentFuture = ctx.writeAndFlush("\n");
+            //sendFileFuture =ctx.writeAndFlush(new DefaultFileRegion(raf.getChannel(), 0, fileLength), ctx.newProgressivePromise()); //일케 하면 안됨
+            //sendFileFuture =ctx.writeAndFlush(new ChunkedFile(raf, 0, fileLength, 8192),ctx.newProgressivePromise()); //일케 해야됨
 
-            sendFileFuture =ctx.writeAndFlush(new ChunkedFile(raf, 0, fileLength, 8192),ctx.newProgressivePromise()); //파일로 보냄
+            final FileInputStream fis = new FileInputStream(file);
+
+
+            mBuffer.writeBytes(fis, (int) Math.min(fileLength - mOffest,mBuffer.writableBytes()));
+            mOffest += mBuffer.writerIndex();
+            sendFileFuture = ctx.writeAndFlush(mBuffer);
+            mBuffer.clear();
+            sendFileFuture.addListener(new ChannelFutureListener(){
+                private long offset=mOffest;
+
+                @Override
+                public void operationComplete(ChannelFuture future)	throws Exception {
+                    // TODO Auto-generated method stub
+
+                    if (!future.isSuccess()) {
+                        Logger.t("FileSend").d("Fail!!");
+                        future.cause().printStackTrace();
+                        future.channel().close();
+                        fis.close();
+                        return;
+                    }
+
+
+                    ByteBuf buffer =  mPoolBuf.alloc().buffer(4096);
+
+                    int nWriteLen = (int)Math.min(mFileLenth-offset,buffer.writableBytes());
+
+                    //Logger.t("FileSend").d("SENDING: offset["+offset+"] fileLength["+mFileLenth+"] buffer.writableBytes()["+buffer.writableBytes()+"]");
+
+                    //mPercent=(int)((offset*100)/mFileLenth);
+                    mPercent=(int)(offset * 100.0 / mFileLenth + 0.5);
+
+                    Logger.t("FileSend").d("SENDING: offset["+offset+"] fileLength["+mFileLenth+"] mPercent["+mPercent+"]  buffer.writableBytes()["+buffer.writableBytes()+"]");
+
+                    mFileAsyncCallBack.onResult(mPercent);
+
+                    buffer.clear();
+                    buffer.writeBytes(fis,nWriteLen);
+                    offset += buffer.writerIndex();
+
+                    //ChannelFuture chunkWriteFuture=future.channel().writeAndFlush(buffer);
+                    ChannelFuture chunkWriteFuture=ctx.writeAndFlush(buffer);
+                    if (offset < mFileLenth) {
+                        Logger.t("FileSend").d("call!!");
+                        chunkWriteFuture.addListener(this);
+                    } else {
+                        // Wrote the last chunk - close the connection if thewrite is done.
+                        Logger.t("FileSend").d("DONE: fileLength["+mFileLenth+"] offset["+offset+"]");
+                        chunkWriteFuture.addListener(ChannelFutureListener.CLOSE);
+                        fis.close();
+                    }
+
+                }
+
+            });
+
             lastContentFuture = sendFileFuture;
 
         } else {
             Logger.d("ssl transfer");
             sendFileFuture = ctx.writeAndFlush(new ChunkedFile(raf, 0, fileLength, 8192),ctx.newProgressivePromise());
             // HttpChunkedInput will write the end marker (LastHttpContent) for us.
+
+
+            sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
+                @Override
+                public void operationProgressed(ChannelProgressiveFuture future, long progress, long total) {
+
+                    mPercent=(int)((progress*100)/mFileLenth);
+
+                    if (total < 0) { // total unknown
+                        //System.err.println(future.channel() + " Transfer progress: " + progress);
+                        Logger.d(future.channel() + " Transfer progress: " + progress+"("+mPercent+"%)");
+
+                    } else {
+
+                        Logger.d(future.channel() + " Transfer progress: " + progress + " / " + total);
+                        //Logger.d("!!! mPercent :"+mPercent);
+
+                    }
+                    //((HomeActivity)mContext).myCallBack(mPercent);
+
+
+                    mFileAsyncCallBack.onResult(mPercent);
+
+
+                }
+
+                @Override
+                public void operationComplete(ChannelProgressiveFuture future) {
+                    Logger.d(future.channel() + " Transfer complete.");
+                    mPercent=100;
+                }
+            });
+
             lastContentFuture = sendFileFuture;
         }
 
 
-        sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
-            @Override
-            public void operationProgressed(ChannelProgressiveFuture future, long progress, long total) {
-
-                mPercent=(int)((progress*100)/mFileLenth);
-
-                if (total < 0) { // total unknown
-                    //System.err.println(future.channel() + " Transfer progress: " + progress);
-                   //Logger.d(future.channel() + " Transfer progress: " + progress+"("+mPercent+"%)");
-
-                } else {
-
-                     //Logger.d(future.channel() + " Transfer progress: " + progress + " / " + total);
-                    //Logger.d("!!! mPercent :"+mPercent);
-
-                }
-                //((HomeActivity)mContext).myCallBack(mPercent);
-
-
-                mFileAsyncCallBack.onResult(mPercent);
-
-
-            }
-
-            @Override
-            public void operationComplete(ChannelProgressiveFuture future) {
-                Logger.d(future.channel() + " Transfer complete.");
-                mPercent=100;
-             }
-        });
-
         // Decide whether to close the connection or not.
-        Logger.d("Close");
-        lastContentFuture.addListener(ChannelFutureListener.CLOSE);
+        Logger.t("FileSend").d("Close");
+        //lastContentFuture.addListener(ChannelFutureListener.CLOSE);
 
     }
 

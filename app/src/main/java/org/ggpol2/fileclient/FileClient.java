@@ -4,6 +4,8 @@ import android.content.Context;
 
 import com.orhanobut.logger.Logger;
 
+import java.io.File;
+
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -25,7 +27,7 @@ public class FileClient{
 
     private Context mContext;
 
-    static final String HOST ="192.168.0.2";
+    static final String HOST ="172.22.105.163";
 
     static final int PORT 		= 8023;
     static final int SSL_PORT 	= 8992;
@@ -33,8 +35,8 @@ public class FileClient{
     private boolean mIsSsl;
     private int mPort;
 
-    public FileClient(Context ctxt,boolean isSsl) {
-        this.mContext=ctxt;
+    public FileClient(Context context,boolean isSsl) {
+        this.mContext=context;
 
         this.mIsSsl	= isSsl;
         this.mPort = (this.mIsSsl ? SSL_PORT : PORT);
@@ -43,7 +45,7 @@ public class FileClient{
 
     }
 
-    public void start() throws Exception {
+    public FileClient start() throws Exception {
 
         //((HomeActivity)mContext).startProgressBar2();
 
@@ -102,6 +104,8 @@ public class FileClient{
             // The connection is closed automatically on shutdown.
             group.shutdownGracefully();
         }
+        Logger.d(" netty 종료~");
+        return this;
     }
 
 
