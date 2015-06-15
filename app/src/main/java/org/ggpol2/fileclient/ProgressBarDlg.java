@@ -57,11 +57,12 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
         });
 
 
+        //콜백연결
         FileClientHandler.setAsyncCallBack(fileAsyncCallBack);
 
     }
 
-    //콜백연렬
+    //콜백
     private FileAsyncCallBack fileAsyncCallBack = new FileAsyncCallBack() {
 
         @Override
@@ -163,7 +164,7 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
 
         String msg="";
 
-        if(mIsRun) msg="전송완료";
+        if(mIsRun) msg=" 전송완료";
         else msg="네트워크가 정상적이지 않습니다.";
 
         Toast.makeText(mContext, Integer.toString(result) + msg,

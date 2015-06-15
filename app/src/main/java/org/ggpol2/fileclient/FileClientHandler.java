@@ -109,11 +109,12 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
         } catch (UnsupportedEncodingException e) {
             e.printStackTrace();
         }
-        //ByteBuf buffer = m_pool_buf.alloc.buffer(file.getName().length() + 12);
-        ByteBuf buffer = mPoolBuf.alloc().buffer(4096);
-        buffer.writeInt(f_name.length());
-        buffer.writeBytes(f_name.getBytes());
-        buffer.writeLong(file.length());
+
+        ByteBuf buffer = mPoolBuf.alloc().buffer(1024);             //고정크기 1024
+        buffer.writeInt(f_name.length());                           //파일이름 길이(4)
+        buffer.writeBytes(f_name.getBytes());                       //파일이름에따라 틀림
+        buffer.writeLong(file.length());                            //파일크기(8)
+        buffer.writeZero(buffer.capacity()-buffer.writerIndex());   //나머지 부분을 0으로 셋팅해서 버퍼크기를 맞춤
         return buffer;
     }
 
@@ -260,6 +261,7 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
             });
 
             lastContentFuture = sendFileFuture;
+            lastContentFuture.addListener(ChannelFutureListener.CLOSE);
         }
 
 
@@ -287,6 +289,13 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
                           //cause.getClass().getSimpleName() + ": " +
                           //cause.getMessage() + '\n').addListener(ChannelFutureListener.CLOSE);
          }
+    }
+
+    public long byteToMB(long byteTransform)
+    {
+        long mb=1024L*1024L;
+        return byteTransform/mb;
+
     }
 
 }

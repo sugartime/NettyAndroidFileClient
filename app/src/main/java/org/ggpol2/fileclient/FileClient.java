@@ -27,7 +27,7 @@ public class FileClient{
 
     private Context mContext;
 
-    static final String HOST ="172.22.105.163";
+    static final String HOST ="192.168.0.2";
 
     static final int PORT 		= 8023;
     static final int SSL_PORT 	= 8992;
@@ -54,7 +54,7 @@ public class FileClient{
         final SslContext sslCtx;
         if (mIsSsl) {
             sslCtx = SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
-            //sslCtx = SslContextBuilder.forServer(f_certificate, f_privatekey,"ggpol123").build();
+            //sslCtx = SslContextBuilder.forServer(f_certificate, f_privatekey,"12345").build();
 
 
         } else {
