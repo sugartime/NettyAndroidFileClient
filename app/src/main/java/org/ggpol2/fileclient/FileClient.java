@@ -27,21 +27,18 @@ public class FileClient{
 
     private Context mContext;
 
-    static final String HOST ="192.168.0.2";
+    private String mFilePathName;
 
-    static final int PORT 		= 8023;
-    static final int SSL_PORT 	= 8992;
-
-    private boolean mIsSsl;
     private int mPort;
 
-    public FileClient(Context context,boolean isSsl) {
+    public FileClient(Context context,String filePathName) {
+
         this.mContext=context;
 
-        this.mIsSsl	= isSsl;
-        this.mPort = (this.mIsSsl ? SSL_PORT : PORT);
+        this.mPort = (FileClientConstants.IS_SSL ? FileClientConstants.SSL_PORT : FileClientConstants.PORT);
 
-        Logger.d(" mIsSsl :" + mIsSsl + " m_port:" + mPort);
+        this.mFilePathName=filePathName;
+
 
     }
 
@@ -52,7 +49,7 @@ public class FileClient{
         // Configure SSL.
 
         final SslContext sslCtx;
-        if (mIsSsl) {
+        if (FileClientConstants.IS_SSL) {
             sslCtx = SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
             //sslCtx = SslContextBuilder.forServer(f_certificate, f_privatekey,"12345").build();
 
@@ -66,24 +63,22 @@ public class FileClient{
             Bootstrap b = new Bootstrap();
             b.group(group)
                     .channel(NioSocketChannel.class)
+                    .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)
                     .handler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         public void initChannel(SocketChannel ch) throws Exception {
                             ChannelPipeline p = ch.pipeline();
                             if (sslCtx != null) {
-                                p.addLast(sslCtx.newHandler(ch.alloc(), HOST, mPort));
+                                p.addLast(sslCtx.newHandler(ch.alloc(), FileClientConstants.HOST, mPort));
                             }
                             p.addLast(//new StringEncoder(CharsetUtil.UTF_8),
                                     new ChunkedWriteHandler(),
-                                    new FileClientHandler(mContext));
+                                    new FileClientHandler(mContext,mFilePathName));
                         }
                     });
 
-
-            b.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000);
-
             // Start the connection attempt.
-            ChannelFuture f =  b.connect(HOST, mPort).sync();
+            ChannelFuture f =  b.connect(FileClientConstants.HOST, mPort).sync();
 
             f.awaitUninterruptibly();
 
@@ -105,6 +100,7 @@ public class FileClient{
             group.shutdownGracefully();
         }
         Logger.d(" netty 종료~");
+
         return this;
     }
 

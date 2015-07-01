@@ -36,11 +36,12 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
     private ProgressDialog mDlg;
     private Context mContext;
 
+    private String mFilePathName;
+
 
 
     //1MB POOLED 버퍼
     ByteBuf mPoolBuf;
-
     ByteBuf mBuffer;
     long mOffest=0L;
 
@@ -53,8 +54,11 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
     private static FileAsyncCallBack mFileAsyncCallBack =null;
 
 
-    public FileClientHandler(Context context){
+    public FileClientHandler(Context context,String filePathName){
         this.mContext=context;
+        this.mFilePathName=filePathName;
+
+        mPoolBuf=PooledByteBufAllocator.DEFAULT.directBuffer(FileClientConstants.POOL_BUF_SIZE);
     }
 
     //콜벡 셋팅
@@ -69,10 +73,7 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
         //System.out.println("handlerAdded");
         Logger.d("handlerAdded");
 
-        mPoolBuf=PooledByteBufAllocator.DEFAULT.directBuffer(1048576);
-
-        mBuffer = mPoolBuf.alloc().buffer(4096);
-
+        mBuffer = mPoolBuf.alloc().buffer(FileClientConstants.SND_BUF_SIZE);
 
     }
 
@@ -81,14 +82,18 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
     public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
         // TODO Auto-generated method stub
         Logger.d("handlerRemoved");
-        mPercent=0;
-        mFileAsyncCallBack =null;
 
+        ctx.close();
+        mPoolBuf.release();
+        mPoolBuf=null;
+
+        /*
         if (ctx.channel().isActive()){
             Logger.d("!!!!!! ctx.channel().isActive()");
             ctx.close();
             mPoolBuf.clear();
         }
+        */
 
     }
 
@@ -110,11 +115,12 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
             e.printStackTrace();
         }
 
-        ByteBuf buffer = mPoolBuf.alloc().buffer(1024);             //고정크기 1024
-        buffer.writeInt(f_name.length());                           //파일이름 길이(4)
-        buffer.writeBytes(f_name.getBytes());                       //파일이름에따라 틀림
-        buffer.writeLong(file.length());                            //파일크기(8)
-        buffer.writeZero(buffer.capacity()-buffer.writerIndex());   //나머지 부분을 0으로 셋팅해서 버퍼크기를 맞춤
+        ByteBuf buffer = mPoolBuf.alloc().buffer(FileClientConstants.INIT_BUF_SIZE);     //고정크기 512
+        buffer.writeInt(f_name.length());                                                //파일이름 길이(4)
+        buffer.writeBytes(f_name.getBytes());                                            //파일이름에따라 틀림
+        buffer.writeLong(file.length());                                                 //파일크기(8)
+        int nFillZero = buffer.capacity()-buffer.writerIndex();
+        buffer.writeZero(nFillZero);                                                     //나머지 부분을 0으로 셋팅해서 버퍼크기를 맞춤
         return buffer;
     }
 
@@ -124,10 +130,10 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
 
         Logger.d("channelActive");
 
-
+        File file  = new File(mFilePathName);
 
         //File file  = new File("/mnt/sdcard/Tulips.jpg");
-        File file  = new File("/mnt/sdcard/ML-3475_Print.zip");
+       // File file  = new File("/mnt/sdcard/ML-3475_Print.zip");
         //File file  = new File("E:\\UTIL\\dotnet framework 4.0\\dotNetFx40_Full_x86.exe");
         //File file  = new File("E:\\UTIL\\ML-3475ND\\ML-3475_Print.zip");
 
@@ -197,9 +203,14 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
                     //mPercent=(int)((offset*100)/mFileLenth);
                     mPercent=(int)(offset * 100.0 / mFileLenth + 0.5);
 
-                    Logger.t("FileSend").d("SENDING: offset["+offset+"] fileLength["+mFileLenth+"] mPercent["+mPercent+"]  buffer.writableBytes()["+buffer.writableBytes()+"]");
+                    Logger.t("FileSend").d("SENDING: offset["+offset+"] fileName["+mFilePathName+"] fileLength["+mFileLenth+"] mPercent["+mPercent+"]  buffer.writableBytes()["+buffer.writableBytes()+"]");
 
-                    mFileAsyncCallBack.onResult(mPercent);
+                    //콜백에 전달
+                    FileNameStatus fileNameStauts = new FileNameStatus();
+                    fileNameStauts.setStrFilePathName(mFilePathName);
+                    fileNameStauts.setnFilePercent(mPercent);
+
+                    mFileAsyncCallBack.onResult(fileNameStauts);
 
                     buffer.clear();
                     buffer.writeBytes(fis,nWriteLen);
@@ -213,6 +224,10 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
                     } else {
                         // Wrote the last chunk - close the connection if thewrite is done.
                         Logger.t("FileSend").d("DONE: fileLength["+mFileLenth+"] offset["+offset+"]");
+
+                        fileNameStauts.setnFilePercent(100);
+                        mFileAsyncCallBack.onResult(fileNameStauts);
+
                         chunkWriteFuture.addListener(ChannelFutureListener.CLOSE);
                         fis.close();
                     }
@@ -221,7 +236,7 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
 
             });
 
-            lastContentFuture = sendFileFuture;
+            //lastContentFuture = sendFileFuture;
 
         } else {
             Logger.d("ssl transfer");
@@ -248,7 +263,11 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
                     //((HomeActivity)mContext).myCallBack(mPercent);
 
 
-                    mFileAsyncCallBack.onResult(mPercent);
+                    //콜백에 전달
+                    FileNameStatus fileNameStauts = new FileNameStatus();
+                    fileNameStauts.setStrFilePathName(mFilePathName);
+                    fileNameStauts.setnFilePercent(mPercent);
+                    mFileAsyncCallBack.onResult(fileNameStauts);
 
 
                 }
@@ -256,12 +275,19 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
                 @Override
                 public void operationComplete(ChannelProgressiveFuture future) {
                     Logger.d(future.channel() + " Transfer complete.");
-                    mPercent=100;
+
+                    //콜백에 전달
+                    FileNameStatus fileNameStauts = new FileNameStatus();
+                    fileNameStauts.setStrFilePathName(mFilePathName);
+                    fileNameStauts.setnFilePercent(mPercent);
+                    mFileAsyncCallBack.onResult(fileNameStauts);
+
+                    sendFileFuture.addListener(ChannelFutureListener.CLOSE);
                 }
             });
 
-            lastContentFuture = sendFileFuture;
-            lastContentFuture.addListener(ChannelFutureListener.CLOSE);
+            //lastContentFuture = sendFileFuture;
+            //lastContentFuture.addListener(ChannelFutureListener.CLOSE);
         }
 
 

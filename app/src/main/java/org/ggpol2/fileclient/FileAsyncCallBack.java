@@ -7,7 +7,9 @@ public interface FileAsyncCallBack {
 
     boolean onStart(boolean bStart);
 
-    int onResult(int nPercent);
+    void onStop(String filePathName);
+
+    void onResult(FileNameStatus fileNameStatus);
 
     boolean onComplete(boolean bComp);
 }

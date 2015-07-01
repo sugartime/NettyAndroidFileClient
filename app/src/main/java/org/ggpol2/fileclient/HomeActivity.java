@@ -18,7 +18,11 @@ import android.widget.Toast;
 
 import com.orhanobut.logger.Logger;
 
+import java.util.ArrayList;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelFuture;
@@ -41,6 +45,8 @@ public class HomeActivity extends AppCompatActivity  {
     private Button mBtnStartUpload;
     private Button mBtnProgressDlg;
 
+    //콜백 리턴값
+    private static ArrayList<FileNameStatus> mArrFileList=null;
 
     private AsyncTask<Integer, String, Integer> mProgressDlg;
 
@@ -94,6 +100,13 @@ public class HomeActivity extends AppCompatActivity  {
     public void addFileUploadBtnListener(){
         mBtnStartUpload = (Button) findViewById(R.id.btnStartUpload);
 
+        //업로드할 파일객체 등록
+        mArrFileList=new ArrayList<FileNameStatus>();
+        mArrFileList.add(rtnFiNmaeStatus("/mnt/sdcard/ML-3475_Print.zip"));
+        mArrFileList.add(rtnFiNmaeStatus("/mnt/sdcard/Tulips.jpg"));
+        mArrFileList.add(rtnFiNmaeStatus("/mnt/sdcard/ML1750.zip"));
+
+
 
         mBtnStartUpload.setOnClickListener(new OnClickListener() {
 
@@ -102,24 +115,7 @@ public class HomeActivity extends AppCompatActivity  {
 
                 Logger.d("startUpload!!");
 
-
-                // 비동기로 실행될 코드
-//                Callable<FileClient> callable =   new Callable<FileClient>(){
-//                    @Override
-//                    public FileClient call() throws Exception {
-//                        return new FileClient(getContext(), true).start();
-//                    }
-//                };
-
-//
-//                try {
-//                    callable.call();
-//                }catch (Exception e){
-//                    e.printStackTrace();
-//                }
-
-
-                new ProgressBarDlg(getContext()).execute(100);
+                new ProgressBarDlg(getContext(), mArrFileList).execute(100);
 
 
             }
@@ -287,6 +283,16 @@ public class HomeActivity extends AppCompatActivity  {
         }).start();
 
 
+    }
+
+
+    //파일이름,진행상태 객체 리턴
+    private static FileNameStatus rtnFiNmaeStatus(String strFilePathName){
+
+        FileNameStatus obj = new FileNameStatus();
+        obj.setStrFilePathName(strFilePathName);
+        obj.setnFilePercent(0);
+        return obj;
     }
 
 
