@@ -129,18 +129,25 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
                     obj.setnFilePercent(fileNameStatus.getnFilePercent());
                     obj.setlProgress(fileNameStatus.getlProgress());
 
+                    mTotalProgress += fileNameStatus.getlProgress();
 
-                    mTotalProgress = mMidProgress+fileNameStatus.getlProgress();  //값이 누적되어 넘어온다.
+                    mTotalProgress = mMidProgress + fileNameStatus.getlProgress();  //값이 누적되어 넘어온다.
 
-                    if(fileNameStatus.getIsComplete()){
-                        Logger.t(TAG).d("**************** Check this    fileNameStatus.getnFilePercent() "+fileNameStatus.getnFilePercent());
-                        mMidProgress+=fileNameStatus.getlProgress();
+                    if (fileNameStatus.getIsComplete()) {
+                        Logger.t(TAG).d("**************** Check this    fileNameStatus.getnFilePercent() " + fileNameStatus.getnFilePercent());
+                        mMidProgress += fileNameStatus.getlProgress();
                     }
 
-                    //mPercent=(int)((progress*100)/mFileLength);
-                    //mPercent=(int)(offset * 100.0 / mFileLength + 0.5);
-                    mTotalPercent = (int) ((mTotalProgress * 100) / mTotalFileLength);
+                    //ssl transfer 일 경우와 일반일 경우 계산하는 방법이 다르다.
+                    if(FileClientConstants.IS_SSL) {
+                        mTotalPercent = (int) ((mTotalProgress * 100) / mTotalFileLength);
+                    }else{
+                        mTotalPercent=(int)(mTotalProgress * 100.0 / mTotalFileLength + 0.5);
+                    }
+
                     Logger.t(TAG).d("Filename["+obj.getStrFilePathName()+"] mTotalFileLength [" + mTotalFileLength + "] mTotalProgress [" + mTotalProgress + "] mMidProgress [" + mMidProgress + "]  mTotalPercent[" + mTotalPercent + "]");
+
+
                 }
             }
         }
@@ -266,8 +273,9 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
                         //Logger.t(TAG).d("Thread.currentThread().isInterrupted()["+Thread.currentThread().isInterrupted()+"] fileName["+fileNmae+"] progressBarStatus ["+progressBarStatus+"%]");
 
                         // 작업이 진행되면서 호출하며 화면의 업그레이드를 담당하게 된다
-
-                       //  publishProgress("progress", Integer.toString(progressBarStatus), fileNmae);
+                        // 개별 업로드용
+                        // publishProgress("progress", Integer.toString(progressBarStatus), fileNmae);
+                        //전체 업로드용
                         publishProgress("progress", Integer.toString(mTotalPercent), fileNmae);
 
                     }

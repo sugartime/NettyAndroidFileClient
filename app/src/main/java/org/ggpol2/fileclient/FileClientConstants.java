@@ -7,9 +7,9 @@ public class FileClientConstants {
 
     static final String TAG = "File Client";
 
-    static final String 	HOST		= "172.22.105.163"; //호스트
+    static final String 	HOST		= "192.168.0.2"; //호스트
 
-    static final boolean  	IS_SSL 		= true; //SSL 동작여부
+    static final boolean  	IS_SSL 		= false; //SSL 동작여부
     static final int 		PORT 		= 8023;
     static final int 		SSL_PORT 	= 8992;
 

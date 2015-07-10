@@ -206,12 +206,14 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
                     //mPercent=(int)((offset*100)/mFileLenth);
                     mPercent=(int)(offset * 100.0 / mFileLength + 0.5);
 
-                    Logger.t("FileSend").d("SENDING: offset["+offset+"] fileName["+mFilePathName+"] fileLength["+mFileLength+"] mPercent["+mPercent+"]  buffer.writableBytes()["+buffer.writableBytes()+"]");
+                    Logger.t(TAG).d("SENDING: offset["+offset+"] fileName["+mFilePathName+"] fileLength["+mFileLength+"] mPercent["+mPercent+"]  buffer.writableBytes()["+buffer.writableBytes()+"]");
 
                     //콜백에 전달
                     FileNameStatus fileNameStauts = new FileNameStatus();
                     fileNameStauts.setStrFilePathName(mFilePathName);
                     fileNameStauts.setnFilePercent(mPercent);
+                    fileNameStauts.setlProgress(offset);
+                    fileNameStauts.setIsComplete(false);
 
                     mFileAsyncCallBack.onResult(fileNameStauts);
 
@@ -222,13 +224,15 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
                     //ChannelFuture chunkWriteFuture=future.channel().writeAndFlush(buffer);
                     ChannelFuture chunkWriteFuture=ctx.writeAndFlush(buffer);
                     if (offset < mFileLength) {
-                        Logger.t("FileSend").d("call!!");
+                        Logger.t(TAG).d("call!!");
                         chunkWriteFuture.addListener(this);
                     } else {
                         // Wrote the last chunk - close the connection if thewrite is done.
-                        Logger.t("FileSend").d("DONE: fileLength["+mFileLength+"] offset["+offset+"]");
+                        Logger.t(TAG).d("DONE: fileLength["+mFileLength+"] offset["+offset+"]");
 
                         fileNameStauts.setnFilePercent(100);
+                        fileNameStauts.setlProgress(offset);
+                        fileNameStauts.setIsComplete(true);
                         mFileAsyncCallBack.onResult(fileNameStauts);
 
                         chunkWriteFuture.addListener(ChannelFutureListener.CLOSE);
