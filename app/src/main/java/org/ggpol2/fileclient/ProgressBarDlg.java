@@ -7,6 +7,8 @@ import android.widget.Toast;
 
 import com.orhanobut.logger.Logger;
 
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.concurrent.Callable;
@@ -20,6 +22,8 @@ import java.util.concurrent.Future;
  * Params, Progress, Result
  */
 public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
+
+    static final String TAG = "ProgressBarDlg";
 
     private ProgressDialog mDlg;
     private Context mContext;
@@ -43,6 +47,13 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
     //콜백 리턴값
     private int mPercent=0;
     private boolean mComplete;
+
+    //전체 업로드
+    private int mTotalPercent=0;
+    private long mTotalProgress=0L; //전체전송 progress 값
+    private long mMidProgress=0L;   //중간정산 progress 값
+    private long mTotalFileLength=0L;
+
 
 
 
@@ -94,14 +105,6 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
     //콜백
     private FileAsyncCallBack fileAsyncCallBack = new FileAsyncCallBack() {
 
-        /*
-        @Override
-        public  int onResult(int nPercent) {
-            mPercent=nPercent;
-            return mPercent;
-        }*/
-
-
 
         @Override
         public boolean onStart(boolean bStart) {
@@ -112,19 +115,46 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
         public void onStop(String filePathName) {
             for(FileNameStatus obj : mArrFileList){
                 if(obj.getStrFilePathName().equals(filePathName)){
-                    obj.setnFilePercent(100);
+                    obj.setIsStop(true);
                 }
             }
         }
 
+
+        //전체 업로드 퍼센트 구할때 사용
         @Override
         public void onResult(FileNameStatus fileNameStatus) {
             for(FileNameStatus obj : mArrFileList){
-                if(obj.getStrFilePathName().equals(fileNameStatus.getStrFilePathName())){
+                if(obj.getStrFilePathName().equals(fileNameStatus.getStrFilePathName())) {
                     obj.setnFilePercent(fileNameStatus.getnFilePercent());
+                    obj.setlProgress(fileNameStatus.getlProgress());
+
+
+                    mTotalProgress = mMidProgress+fileNameStatus.getlProgress();  //값이 누적되어 넘어온다.
+
+                    if(fileNameStatus.getIsComplete()){
+                        Logger.t(TAG).d("**************** Check this    fileNameStatus.getnFilePercent() "+fileNameStatus.getnFilePercent());
+                        mMidProgress+=fileNameStatus.getlProgress();
+                    }
+
+                    //mPercent=(int)((progress*100)/mFileLength);
+                    //mPercent=(int)(offset * 100.0 / mFileLength + 0.5);
+                    mTotalPercent = (int) ((mTotalProgress * 100) / mTotalFileLength);
+                    Logger.t(TAG).d("Filename["+obj.getStrFilePathName()+"] mTotalFileLength [" + mTotalFileLength + "] mTotalProgress [" + mTotalProgress + "] mMidProgress [" + mMidProgress + "]  mTotalPercent[" + mTotalPercent + "]");
                 }
             }
         }
+
+
+//        개별 업로드 퍼센트 구할때 사용
+//        @Override
+//        public void onResult(FileNameStatus fileNameStatus) {
+//            for(FileNameStatus obj : mArrFileList){
+//                if(obj.getStrFilePathName().equals(fileNameStatus.getStrFilePathName())){
+//                    obj.setnFilePercent(fileNameStatus.getnFilePercent());
+//                }
+//            }
+//        }
 
         @Override
         public boolean onComplete(boolean bComp) {
@@ -136,39 +166,52 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
 
     @Override
     protected void onPreExecute() {
+
         mDlg = new ProgressDialog(mContext);
         mDlg.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         mDlg.setMessage("Start");
         mDlg.show();
 
+        //전체파일 크기 구하기 및 초기화
+        for( FileNameStatus obj : mArrFileList) {
 
-        //Future<FileClient> future= pool.submit(mCallable);
+            //이걸 안하면 클릭할때 예전 정보를 보여준다.
+            obj.setnFilePercent(0);
+            obj.setlProgress(0L);
+            obj.setIsStop(false);
 
-        /*
-        try {
-            future.get();//하면안됨 ....
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
+            RandomAccessFile raf = null;
+            long fileLength = -1;
+            try {
+                raf = new RandomAccessFile(obj.getStrFilePathName(), "r");
+                fileLength = raf.length();
+                mTotalFileLength+=fileLength;
+                //Logger.t(TAG).d("onPreExecute(), fileNmae ["+obj.getStrFilePathName()+"] fileLength ["+fileLength+"] mTotalFileLength ["+mTotalFileLength+"]");
+            } catch (Exception e) {
+                return;
+            } finally {
+                if (fileLength < 0 && raf != null) {
+                    try {
+                        raf.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
         }
-        */
-
-
-        //mRunnableFuture= pool.submit(mFileClientThread);
-
-
-
-
 
         super.onPreExecute();
     }
 
 
 
+
+
     // UI 스레드에서 AsynchTask객체.execute(...) 명령으로 실행되는 callback
     @Override
     protected Integer doInBackground(Integer... params) {
+
+        Logger.t(TAG).d("doInBackground()");
         //Background에서 수행할 작업을 구현 ProgressbarDlg.execute(…) 메소드에 입력된 인자들을 전달 받음.
 
         final int taskCnt = params[0];
@@ -201,7 +244,11 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
                     int progressBarStatus = 0;
                     String fileNmae = obj.getStrFilePathName();
 
-                    while (progressBarStatus < taskCnt) {
+                    while (progressBarStatus < taskCnt ) {
+
+                        //Logger.t(TAG).d("obj.isStop :"+obj.getIsStop());
+
+                        if(obj.getIsStop()) break;
 
 
                         progressBarStatus = obj.getnFilePercent();
@@ -216,14 +263,12 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
                             e.printStackTrace();
                         }
 
-                        Logger.d("Thread.currentThread().isInterrupted()["+Thread.currentThread().isInterrupted()+"] fileName["+fileNmae+"] progressBarStatus ["+progressBarStatus+"%]");
+                        //Logger.t(TAG).d("Thread.currentThread().isInterrupted()["+Thread.currentThread().isInterrupted()+"] fileName["+fileNmae+"] progressBarStatus ["+progressBarStatus+"%]");
 
                         // 작업이 진행되면서 호출하며 화면의 업그레이드를 담당하게 된다
-                        //publishProgress("progress", Integer.toString(progressBarStatus),
-                        //        "Task " + Integer.toString(progressBarStatus));
 
-                        publishProgress("progress", Integer.toString(progressBarStatus), fileNmae);
-
+                       //  publishProgress("progress", Integer.toString(progressBarStatus), fileNmae);
+                        publishProgress("progress", Integer.toString(mTotalPercent), fileNmae);
 
                     }
 
@@ -235,6 +280,7 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
             Future<FileClient> future = executor.submit(callable);
 
             try {
+                //Logger.t(TAG).d("future.get() : " +future.get());
                 if(future.get()==null){
                     //t.interrupt();
                     fileAsyncCallBack.onStop(obj.getStrFilePathName());
@@ -266,6 +312,9 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
     // background 작업 진행 상황을 UI에 표현함.
     @Override
     protected void onProgressUpdate(String... progress) {
+
+        //Logger.t(TAG).d("onProgressUpdate()");
+
         if (progress[0].equals("progress")) {
             mDlg.setProgress(Integer.parseInt(progress[1]));
             mDlg.setMessage(progress[2]);
@@ -280,9 +329,15 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
     @Override
     protected void onPostExecute(Integer result) {
 
+        Logger.t(TAG).d("onPostExecute()");
+
         //Logger.d("mFileClientThread.isAlive()= "+mFileClientThread.isAlive());
 
+        //mDlg.dismiss();
         mDlg.dismiss();
+
+        //mDlg=null;
+
         //pool.shutdown();
 
         /*

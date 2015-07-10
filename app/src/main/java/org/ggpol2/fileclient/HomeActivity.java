@@ -3,41 +3,19 @@ package org.ggpol2.fileclient;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.os.AsyncTask;
-import android.os.Handler.Callback;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.Handler;
-import android.os.Looper;
-import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
-import android.widget.Toast;
 
 import com.orhanobut.logger.Logger;
 
 import java.util.ArrayList;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
-import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslContextBuilder;
-import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import io.netty.handler.stream.ChunkedWriteHandler;
-
-import static android.view.View.*;
+import static android.view.View.OnClickListener;
 
 public class HomeActivity extends AppCompatActivity  {
 
@@ -46,7 +24,7 @@ public class HomeActivity extends AppCompatActivity  {
     private Button mBtnProgressDlg;
 
     //콜백 리턴값
-    private static ArrayList<FileNameStatus> mArrFileList=null;
+    //private static ArrayList<FileNameStatus> mArrFileList=null;
 
     private AsyncTask<Integer, String, Integer> mProgressDlg;
 
@@ -101,10 +79,12 @@ public class HomeActivity extends AppCompatActivity  {
         mBtnStartUpload = (Button) findViewById(R.id.btnStartUpload);
 
         //업로드할 파일객체 등록
-        mArrFileList=new ArrayList<FileNameStatus>();
-        mArrFileList.add(rtnFiNmaeStatus("/mnt/sdcard/ML-3475_Print.zip"));
-        mArrFileList.add(rtnFiNmaeStatus("/mnt/sdcard/Tulips.jpg"));
-        mArrFileList.add(rtnFiNmaeStatus("/mnt/sdcard/ML1750.zip"));
+        final ArrayList<FileNameStatus> arrFileList=new ArrayList<FileNameStatus>();
+        arrFileList.add(rtnFiNmaeStatus("/mnt/sdcard/ML-3475_Print.zip"));
+        arrFileList.add(rtnFiNmaeStatus("/mnt/sdcard/Tulips.jpg"));
+        arrFileList.add(rtnFiNmaeStatus("/mnt/sdcard/ML1750.zip"));
+        arrFileList.add(rtnFiNmaeStatus("/mnt/sdcard/IPChanger_3_0_15.zip"));
+
 
 
 
@@ -115,7 +95,7 @@ public class HomeActivity extends AppCompatActivity  {
 
                 Logger.d("startUpload!!");
 
-                new ProgressBarDlg(getContext(), mArrFileList).execute(100);
+                new ProgressBarDlg(getContext(), arrFileList).execute(100);
 
 
             }
@@ -292,6 +272,7 @@ public class HomeActivity extends AppCompatActivity  {
         FileNameStatus obj = new FileNameStatus();
         obj.setStrFilePathName(strFilePathName);
         obj.setnFilePercent(0);
+        obj.setIsStop(false);
         return obj;
     }
 

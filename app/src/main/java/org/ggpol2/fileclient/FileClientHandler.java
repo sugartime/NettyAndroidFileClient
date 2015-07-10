@@ -31,14 +31,13 @@ import com.orhanobut.logger.Logger;
  */
 public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
 
+    static final String TAG = "FileClientHandler";
 
     Thread mProgressThread;
     private ProgressDialog mDlg;
     private Context mContext;
 
     private String mFilePathName;
-
-
 
     //1MB POOLED 버퍼
     ByteBuf mPoolBuf;
@@ -48,11 +47,15 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
     //프로그래스바에 던져줄 값
     private volatile int mPercent;
 
-    private long mFileLenth=0L;
+    private volatile long mProgress;
+
+    private long mFileLength=0L;
 
     //콜백
     private static FileAsyncCallBack mFileAsyncCallBack =null;
 
+    //업로드 데이터의 처음 시작인지 여부
+    private Boolean mIsFirstUpload;
 
     public FileClientHandler(Context context,String filePathName){
         this.mContext=context;
@@ -151,7 +154,7 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
             }
         }
 
-        mFileLenth=fileLength;
+        mFileLength=fileLength;
 
 
         
@@ -196,14 +199,14 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
 
                     ByteBuf buffer =  mPoolBuf.alloc().buffer(4096);
 
-                    int nWriteLen = (int)Math.min(mFileLenth-offset,buffer.writableBytes());
+                    int nWriteLen = (int)Math.min(mFileLength-offset,buffer.writableBytes());
 
                     //Logger.t("FileSend").d("SENDING: offset["+offset+"] fileLength["+mFileLenth+"] buffer.writableBytes()["+buffer.writableBytes()+"]");
 
                     //mPercent=(int)((offset*100)/mFileLenth);
-                    mPercent=(int)(offset * 100.0 / mFileLenth + 0.5);
+                    mPercent=(int)(offset * 100.0 / mFileLength + 0.5);
 
-                    Logger.t("FileSend").d("SENDING: offset["+offset+"] fileName["+mFilePathName+"] fileLength["+mFileLenth+"] mPercent["+mPercent+"]  buffer.writableBytes()["+buffer.writableBytes()+"]");
+                    Logger.t("FileSend").d("SENDING: offset["+offset+"] fileName["+mFilePathName+"] fileLength["+mFileLength+"] mPercent["+mPercent+"]  buffer.writableBytes()["+buffer.writableBytes()+"]");
 
                     //콜백에 전달
                     FileNameStatus fileNameStauts = new FileNameStatus();
@@ -218,12 +221,12 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
 
                     //ChannelFuture chunkWriteFuture=future.channel().writeAndFlush(buffer);
                     ChannelFuture chunkWriteFuture=ctx.writeAndFlush(buffer);
-                    if (offset < mFileLenth) {
+                    if (offset < mFileLength) {
                         Logger.t("FileSend").d("call!!");
                         chunkWriteFuture.addListener(this);
                     } else {
                         // Wrote the last chunk - close the connection if thewrite is done.
-                        Logger.t("FileSend").d("DONE: fileLength["+mFileLenth+"] offset["+offset+"]");
+                        Logger.t("FileSend").d("DONE: fileLength["+mFileLength+"] offset["+offset+"]");
 
                         fileNameStauts.setnFilePercent(100);
                         mFileAsyncCallBack.onResult(fileNameStauts);
@@ -239,7 +242,11 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
             //lastContentFuture = sendFileFuture;
 
         } else {
-            Logger.d("ssl transfer");
+            Logger.t(TAG).d("ssl transfer");
+
+            mIsFirstUpload=true;
+
+
             sendFileFuture = ctx.writeAndFlush(new ChunkedFile(raf, 0, fileLength, 8192),ctx.newProgressivePromise());
             // HttpChunkedInput will write the end marker (LastHttpContent) for us.
 
@@ -248,15 +255,17 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
                 @Override
                 public void operationProgressed(ChannelProgressiveFuture future, long progress, long total) {
 
-                    mPercent=(int)((progress*100)/mFileLenth);
+                    mPercent=(int)((progress*100)/mFileLength);
+
+                    mProgress=progress; //complete 에서 사용하기 위해서
 
                     if (total < 0) { // total unknown
                         //System.err.println(future.channel() + " Transfer progress: " + progress);
-                        Logger.d(future.channel() + " Transfer progress: " + progress+"("+mPercent+"%)");
+                        Logger.t(TAG).d(future.channel() + " Transfer progress: ["+mFilePathName+"]" + progress + "(" + mPercent + "%)");
 
                     } else {
 
-                        Logger.d(future.channel() + " Transfer progress: " + progress + " / " + total);
+                        Logger.t(TAG).d(future.channel() + " Transfer progress: ["+mFilePathName+"]" + progress + " / " + total);
                         //Logger.d("!!! mPercent :"+mPercent);
 
                     }
@@ -267,22 +276,35 @@ public class FileClientHandler extends SimpleChannelInboundHandler<Object> {
                     FileNameStatus fileNameStauts = new FileNameStatus();
                     fileNameStauts.setStrFilePathName(mFilePathName);
                     fileNameStauts.setnFilePercent(mPercent);
+                    fileNameStauts.setlProgress(progress);
+                    fileNameStauts.setIsComplete(false);
+
+
+                    //if(mIsFirstUpload)  fileNameStauts.setIsFirstUpload(true);
                     mFileAsyncCallBack.onResult(fileNameStauts);
+                    //mIsFirstUpload=false;
+
 
 
                 }
 
                 @Override
                 public void operationComplete(ChannelProgressiveFuture future) {
-                    Logger.d(future.channel() + " Transfer complete.");
+                    Logger.t(TAG).d(future.channel() + " Transfer complete. " + "mFilePathName[" + mFilePathName + "],mPercent[" + mPercent+"],mFileLength["+mFileLength+"]");
 
                     //콜백에 전달
                     FileNameStatus fileNameStauts = new FileNameStatus();
                     fileNameStauts.setStrFilePathName(mFilePathName);
                     fileNameStauts.setnFilePercent(mPercent);
+                    fileNameStauts.setlProgress(mProgress);
+                    fileNameStauts.setIsComplete(true);
+
+
                     mFileAsyncCallBack.onResult(fileNameStauts);
 
+
                     sendFileFuture.addListener(ChannelFutureListener.CLOSE);
+
                 }
             });
 
