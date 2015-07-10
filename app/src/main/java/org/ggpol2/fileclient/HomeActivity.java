@@ -19,6 +19,7 @@ import static android.view.View.OnClickListener;
 
 public class HomeActivity extends AppCompatActivity  {
 
+    static final String TAG = "HomeActivity";
 
     private Button mBtnStartUpload;
     private Button mBtnProgressDlg;
@@ -271,9 +272,17 @@ public class HomeActivity extends AppCompatActivity  {
 
         FileNameStatus obj = new FileNameStatus();
         obj.setStrFilePathName(strFilePathName);
+        obj.setStrFileName(filePathNameToFileName(strFilePathName));
         obj.setnFilePercent(0);
         obj.setIsStop(false);
         return obj;
+    }
+
+    //파일경로 이름으로 파일이름 만 리턴
+    private static String filePathNameToFileName(String strFilePathName){
+
+        int idx = strFilePathName.replaceAll("\\\\", "/").lastIndexOf("/");
+        return idx >= 0 ? strFilePathName.substring(idx + 1) : strFilePathName;
     }
 
 

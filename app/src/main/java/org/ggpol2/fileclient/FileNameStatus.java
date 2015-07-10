@@ -6,6 +6,7 @@ package org.ggpol2.fileclient;
 public class FileNameStatus {
 
     private String strFilePathName;
+    private String strFileName;
     private Integer nFilePercent;
     private Long lProgress;
     private Boolean isStop;
@@ -19,6 +20,13 @@ public class FileNameStatus {
         this.strFilePathName = strFilePathName;
     }
 
+    public String getStrFileName() {
+        return strFileName;
+    }
+
+    public void setStrFileName(String strFileName) {
+        this.strFileName = strFileName;
+    }
 
     public Integer getnFilePercent() {
         return nFilePercent;
@@ -51,6 +59,4 @@ public class FileNameStatus {
     public void setIsComplete(Boolean isComplete) {
         this.isComplete = isComplete;
     }
-
-
 }

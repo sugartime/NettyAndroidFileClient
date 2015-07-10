@@ -192,7 +192,8 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
             try {
                 raf = new RandomAccessFile(obj.getStrFilePathName(), "r");
                 fileLength = raf.length();
-                mTotalFileLength+=fileLength;
+                mTotalFileLength+=fileLength; //업로드할 전체 파일 크기
+
                 //Logger.t(TAG).d("onPreExecute(), fileNmae ["+obj.getStrFilePathName()+"] fileLength ["+fileLength+"] mTotalFileLength ["+mTotalFileLength+"]");
             } catch (Exception e) {
                 return;
@@ -249,7 +250,9 @@ public class ProgressBarDlg extends AsyncTask<Integer, String, Integer> {
 
                     //final int taskCnt = 100;
                     int progressBarStatus = 0;
-                    String fileNmae = obj.getStrFilePathName();
+                    //String fileNmae = obj.getStrFilePathName();
+
+                    String fileNmae = obj.getStrFileName();
 
                     while (progressBarStatus < taskCnt ) {
 
